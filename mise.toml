@@ -1,41 +1,142 @@
+# mise owns installation, startup, configuration loading, and backups.
 [env]
-_.path = ["{{config_root}}/bin", "{{env.HOME}}/.local/bin"]
+GAME_SERVER_ROOT = "{{config_root}}"
+_.file = "config/valheim.env"
 
+[task_config]
+dir = "{{config_root}}"
 
 [tasks."install:steamcmd"]
-description = "Install steamcmd standalone binary"
-run = "bash scripts/install-steamcmd.sh"
+description = "Install portable SteamCMD (requires Linux 32-bit libc)"
+run = '''
+set -eu
+mkdir -p tools/steamcmd
+if [ ! -f tools/steamcmd/steamcmd.sh ]; then
+  archive=$(mktemp)
+  trap 'rm -f "$archive"' EXIT
+  curl --fail --location --retry 3 -o "$archive" https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz
+  tar -xzf "$archive" -C tools/steamcmd --no-same-owner
+fi
+'''
 
 [tasks."install:valheim"]
-description = "Install/update Valheim dedicated server using steamcmd"
+description = "Install/update Valheim dedicated server"
 depends = ["install:steamcmd"]
-run = "bash scripts/install-valheim.sh"
+run = '''
+set -eu
+mkdir -p servers/valheim
+exec tools/steamcmd/steamcmd.sh +force_install_dir "$GAME_SERVER_ROOT/servers/valheim" +login anonymous +app_update 896660 validate +quit
+'''
 
 [tasks."install:factorio"]
-description = "Download and extract latest Factorio headless server"
-run = "bash scripts/install-factorio.sh"
+description = "Install/update stable Factorio headless server, preserving settings and saves"
+run = '''
+set -eu
+mkdir -p servers/factorio
+archive=$(mktemp)
+trap 'rm -f "$archive"' EXIT
+curl --fail --location --retry 3 -o "$archive" https://factorio.com/get-download/stable/headless/linux64
+tar -xJf "$archive" --strip-components=1 -C servers/factorio --no-same-owner
+mkdir -p servers/factorio/saves servers/factorio/config
+if [ ! -f servers/factorio/config/server-settings.json ]; then
+  sed 's/"public": true/"public": false/' servers/factorio/data/server-settings.example.json > servers/factorio/config/server-settings.json
+fi
+if [ ! -f servers/factorio/saves/world.zip ]; then
+  servers/factorio/bin/x64/factorio --create "$GAME_SERVER_ROOT/servers/factorio/saves/world.zip"
+fi
+'''
 
 [tasks."install:all"]
-description = "Install both Factorio and Valheim servers"
+description = "Install/update both servers"
 depends = ["install:factorio", "install:valheim"]
 
-[tasks."backup:valheim"]
-description = "Backup Valheim world save files"
-run = "bash scripts/backup-valheim.sh"
+[tasks."start:factorio"]
+description = "Run Factorio in the foreground (Ctrl-C to stop)"
+run = '''
+set -eu
+cd servers/factorio
+[ -x bin/x64/factorio ] || { echo "Run mise run install:factorio first" >&2; exit 1; }
+[ -w . ] && [ -w saves ] || { echo "Factorio directory and saves must be writable by $(id -un)" >&2; exit 1; }
+exec bin/x64/factorio --start-server saves/world.zip --server-settings config/server-settings.json
+'''
+
+[tasks."start:valheim"]
+description = "Run Valheim in the foreground (Ctrl-C to stop)"
+run = '''
+set -eu
+: "${SERVER_NAME:?Set SERVER_NAME in config/valheim.env}"
+: "${SERVER_WORLD:?Set SERVER_WORLD in config/valheim.env}"
+: "${SERVER_PASS:?Set SERVER_PASS in config/valheim.env}"
+[ "$(printf %s "$SERVER_PASS" | wc -m)" -ge 5 ] || { echo "Valheim password must have at least 5 characters" >&2; exit 1; }
+case "$SERVER_NAME" in *"$SERVER_PASS"*) echo "Valheim password must not appear in the server name" >&2; exit 1;; esac
+savedir=${SERVER_SAVEDIR:-$GAME_SERVER_ROOT/servers/valheim/saves}
+case "$savedir" in /*) ;; *) savedir="$GAME_SERVER_ROOT/$savedir";; esac
+mkdir -p "$savedir"
+[ -w "$savedir" ] || { echo "Valheim save directory must be writable by $(id -un): $savedir" >&2; exit 1; }
+cd servers/valheim
+[ -x valheim_server.x86_64 ] || { echo "Run mise run install:valheim first" >&2; exit 1; }
+export LD_LIBRARY_PATH="$PWD/linux64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export SteamAppId=892970
+exec ./valheim_server.x86_64 -nographics -batchmode -name "$SERVER_NAME" -port "${SERVER_PORT:-2456}" -world "$SERVER_WORLD" -password "$SERVER_PASS" -public "${SERVER_PUBLIC:-1}" -savedir "$savedir"
+'''
+
+[tasks.start]
+description = "Run both servers in the foreground"
+depends = ["start:factorio", "start:valheim"]
 
 [tasks."backup:factorio"]
-description = "Backup Factorio world saves"
-run = "bash scripts/backup-factorio.sh"
+description = "Archive Factorio saves; retain seven days"
+run = '''
+set -eu
+source_dir=servers/factorio/saves
+[ -d "$source_dir" ] || { echo "No Factorio saves yet"; exit 0; }
+mkdir -p backups/factorio
+tar -czf "backups/factorio/factorio_$(date -u +%Y%m%dT%H%M%S%N).tar.gz" -C "$source_dir" .
+find backups/factorio -type f -name 'factorio_*.tar.gz' -mtime +7 -delete
+'''
+
+[tasks."backup:valheim"]
+description = "Archive Valheim save directory; retain seven days"
+run = '''
+set -eu
+source_dir=${SERVER_SAVEDIR:-$GAME_SERVER_ROOT/servers/valheim/saves}
+case "$source_dir" in /*) ;; *) source_dir="$GAME_SERVER_ROOT/$source_dir";; esac
+[ -d "$source_dir" ] || { echo "No Valheim saves yet"; exit 0; }
+mkdir -p backups/valheim
+tar -czf "backups/valheim/valheim_$(date -u +%Y%m%dT%H%M%S%N).tar.gz" -C "$source_dir" .
+find backups/valheim -type f -name 'valheim_*.tar.gz' -mtime +7 -delete
+'''
 
 [tasks."backup:all"]
-description = "Backup all game saves"
-depends = ["backup:valheim", "backup:factorio"]
+description = "Back up both servers"
+depends = ["backup:factorio", "backup:valheim"]
 
 [tasks."systemd:install-user"]
-description = "Install systemd user services and backup timers (user session)"
-run = "bash scripts/install-systemd.sh"
+description = "Render optional user services using this checkout and mise executable"
+run = '''
+set -eu
+unit_dir="$HOME/.config/systemd/user"
+mkdir -p "$unit_dir"
+mise_bin=$(command -v mise)
+staging=$(mktemp -d)
+trap 'rm -rf "$staging"' EXIT
+for name in factorio valheim game-backup; do
+  sed -e "s|@ROOT@|$GAME_SERVER_ROOT|g" -e "s|@MISE@|$mise_bin|g" "systemd/$name.service" > "$staging/$name.service"
+  install -m 644 "$staging/$name.service" "$unit_dir/$name.service"
+done
+install -m 644 systemd/game-backup.timer "$unit_dir/game-backup.timer"
+systemctl --user daemon-reload
+systemctl --user enable --now game-backup.timer
+'''
 
-[tasks."systemd:setup-system"]
-description = "Create dedicated unprivileged users and install hardened system-level systemd units"
-run = "sudo bash scripts/setup-systemd-system.sh"
+[tasks."service:start"]
+description = "Start both installed user services"
+run = "systemctl --user start factorio.service valheim.service"
 
+[tasks."service:stop"]
+description = "Stop both user services"
+run = "systemctl --user stop factorio.service valheim.service"
+
+[tasks."service:status"]
+description = "Show both user services"
+run = "systemctl --user status factorio.service valheim.service --no-pager"

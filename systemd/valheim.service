@@ -1,13 +1,15 @@
 [Unit]
-Description=Valheim Dedicated Server
+Description=valheim via mise
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/Documents/game-server/servers/valheim
-ExecStart=%h/Documents/game-server/scripts/start-valheim.sh
+WorkingDirectory=@ROOT@
+ExecStart="@MISE@" run start:valheim
+KillSignal=SIGINT
+TimeoutStopSec=120
 Restart=on-failure
-RestartSec=10s
+RestartSec=10
 
 [Install]
 WantedBy=default.target

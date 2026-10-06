@@ -1,15 +1,15 @@
 [Unit]
-Description=Factorio Dedicated Headless Server
+Description=factorio via mise
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/Documents/game-server/servers/factorio
-ExecStart=%h/Documents/game-server/servers/factorio/bin/x64/factorio \
-    --start-server %h/Documents/game-server/servers/factorio/saves/world.zip \
-    --server-settings %h/Documents/game-server/servers/factorio/config/server-settings.json
+WorkingDirectory=@ROOT@
+ExecStart="@MISE@" run start:factorio
+KillSignal=SIGINT
+TimeoutStopSec=120
 Restart=on-failure
-RestartSec=10s
+RestartSec=10
 
 [Install]
 WantedBy=default.target

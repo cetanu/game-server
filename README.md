@@ -1,107 +1,58 @@
-# Dedicated Game Servers Manager
+# Dedicated game servers
 
-This repository uses [`mise`](https://mise.jdx.dev/) to bootstrap, install, and manage headless game servers (**Factorio** and **Valheim**), with process lifecycle management and automated world backups driven by **systemd user units**.
-
-## Prerequisites
-
-- `mise` installed (`curl https://mise.run | sh` or already in `~/.local/bin/mise`)
-- SteamCMD dependencies (installed automatically or via system package `steamcmd`)
-- To allow user systemd services to persist without an active login session:
-  ```bash
-  loginctl enable-linger $USER
-  ```
-
----
-
-## Directory Structure
-
-```
-├── mise.toml                   # Mise task definitions
-├── config/
-│   └── valheim.env             # Valheim server name, password, port, etc.
-├── scripts/
-│   ├── install-steamcmd.sh     # Portable SteamCMD downloader
-│   ├── install-valheim.sh      # SteamCMD runner to download Valheim AppID 896660
-│   ├── install-factorio.sh     # Downloads headless Factorio tarball & creates initial save
-│   ├── start-valheim.sh        # Startup script for Valheim
-│   ├── backup-valheim.sh       # Backs up ~/.config/unity3d/IronGate/Valheim/worlds_local
-│   ├── backup-factorio.sh      # Backs up servers/factorio/saves
-│   └── install-systemd.sh      # Symlinks services into ~/.config/systemd/user and starts timer
-├── systemd/
-│   ├── factorio.service        # Systemd unit for Factorio
-│   ├── valheim.service         # Systemd unit for Valheim
-│   ├── game-backup.service     # Systemd oneshot unit executing `mise run backup:all`
-│   └── game-backup.timer       # Systemd hourly timer for backups
-└── backups/                    # Auto-generated backup tarballs (.tar.gz)
-```
-
----
+Mise manages installation, configuration, startup, and backups for Factorio and Valheim. Commands live in `mise.toml` and run from the checkout root.
 
 ## Quickstart
 
-### 1. Install & Bootstrap Servers via `mise`
+Install [mise](https://mise.jdx.dev/), plus `curl`, `tar`, and the Linux 32-bit libc libraries required by SteamCMD. Copy the configuration before running tasks:
 
-```bash
-# Install both Factorio and Valheim
+```sh
+cp config/valheim.env.example config/valheim.env
+mise trust
 mise run install:all
-
-# Or install individually:
-mise run install:factorio
-mise run install:valheim
 ```
 
-### 2. Configure Your Game Servers
+Edit `config/valheim.env` to choose the Valheim name, world, and password (at least five characters; cannot appear in the server name). Mise loads this as dotenv data. Valheim saves default to `servers/valheim/saves`; set `SERVER_SAVEDIR` to reuse existing worlds. Relative save paths resolve against the checkout root. If migrating from the old system services, copy any worlds from `/var/opt/valheim-saves` before starting the same world in the new directory.
 
-- **Valheim:** Edit [`config/valheim.env`](file:///home/vsyrakis/Documents/game-server/config/valheim.env) to set `SERVER_NAME`, `SERVER_PASS`, and `SERVER_WORLD`.
-- **Factorio:** Server settings are located in [`servers/factorio/config/server-settings.json`](file:///home/vsyrakis/Documents/game-server/servers/factorio/config/server-settings.json).
+Edit `servers/factorio/config/server-settings.json` for Factorio. Public listing requires Factorio account credentials; for a private server, set `visibility.public` to `false`. Installation preserves existing settings and `saves/world.zip`.
 
-### 3. Install Systemd Services
-
-#### Option A: Hardened System Services with Dedicated Users (Recommended)
-This runs the servers under isolated non-login users (`factorio` and `valheim`) with kernel sandboxing (`ProtectHome=read-only`, `NoNewPrivileges=true`, `PrivateTmp=true`):
-
-```bash
-mise run systemd:setup-system
+```sh
+mise run start:factorio
+mise run start:valheim
+# Or run both together:
+mise run start
 ```
 
-Start and enable at boot:
-```bash
-sudo systemctl enable --now factorio.service
-sudo systemctl enable --now valheim.service
+These run in the foreground. Press Ctrl-C to stop cleanly. Startup does not download updates; stop the server before running `install:factorio` or `install:valheim`. Server directories and saves must be writable by your account.
 
-# Check status:
-sudo systemctl status factorio.service
-sudo systemctl status valheim.service
-```
+## Optional background services
 
-#### Option B: User Session Units
-If you prefer running as your personal user session:
-```bash
+The user services call the same mise tasks. Their installation renders the current checkout path and mise executable into systemd units:
+
+```sh
 mise run systemd:install-user
-systemctl --user enable --now factorio.service
-systemctl --user enable --now valheim.service
+systemctl --user enable --now factorio.service valheim.service
+mise run service:status
+mise run service:stop
+mise run service:start
 ```
 
-systemctl --user status valheim.service
-systemctl --user list-timers
-```
+To keep user services running after logout, use `loginctl enable-linger "$USER"`. If moving the checkout or mise executable, rerun `systemd:install-user`. This task also enables the hourly backup timer.
 
----
+The previous root-level services used dedicated users that could not traverse the home directory. Before switching, disable those old units to prevent duplicate servers at boot:
+
+```sh
+sudo systemctl disable --now factorio.service valheim.service
+```
 
 ## Backups
 
-Backups run automatically every hour via `game-backup.timer`, retaining 7 days of archives in `backups/factorio/` and `backups/valheim/`.
-
-To trigger backups manually on-demand:
-```bash
+```sh
 mise run backup:all
-# or
 mise run backup:factorio
 mise run backup:valheim
 ```
 
----
+Archives go into `backups/<game>/`, retaining seven days. Valheim startup and backup use the same save directory. Live archives may capture files while they change; stop the servers first when you need a consistent snapshot.
 
-## System Tuning & Ports
-
-Refer to [TUNING.md](file:///home/vsyrakis/Documents/game-server/TUNING.md) for CPU governor scaling configuration and UDP firewall port forwarding instructions.
+Downloaded binaries, settings, worlds, and backups are ignored by Git. See [TUNING.md](TUNING.md) for ports and optional host tuning.

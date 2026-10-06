@@ -1,7 +1,8 @@
 [Unit]
-Description=Run backup for Factorio and Valheim game servers
+Description=game-backup via mise
+After=network.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=%h/Documents/game-server
-ExecStart=%h/.local/bin/mise run backup:all
+WorkingDirectory=@ROOT@
+ExecStart="@MISE@" run backup:all
