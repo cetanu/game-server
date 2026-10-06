@@ -27,7 +27,7 @@ These run in the foreground. Press Ctrl-C to stop cleanly. Startup does not down
 
 ## Optional background services
 
-The user services call the same mise tasks. Their installation renders the current checkout path and mise executable into systemd units:
+The user services call the same mise tasks. Service tasks preserve existing session bus settings and otherwise connect to `/run/user/<your UID>/bus`, so they also work in shells without the session variables. Their installation renders the current checkout path and mise executable into systemd units:
 
 ```sh
 mise run systemd:install-user

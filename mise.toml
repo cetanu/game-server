@@ -3,6 +3,11 @@
 GAME_SERVER_ROOT = "{{config_root}}"
 _.file = "config/valheim.env"
 
+# Preserve session overrides; otherwise locate this user's existing systemd bus.
+[vars]
+user_runtime = "{% if env.XDG_RUNTIME_DIR | default(value='') %}{{env.XDG_RUNTIME_DIR}}{% else %}/run/user/{{exec(command='id -u') | trim}}{% endif %}"
+user_bus = "{% if env.DBUS_SESSION_BUS_ADDRESS | default(value='') %}{{env.DBUS_SESSION_BUS_ADDRESS}}{% else %}unix:path={{vars.user_runtime}}/bus{% endif %}"
+
 [task_config]
 dir = "{{config_root}}"
 
@@ -112,6 +117,8 @@ description = "Back up both servers"
 depends = ["backup:factorio", "backup:valheim"]
 
 [tasks."systemd:install-user"]
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
 description = "Render optional user services using this checkout and mise executable"
 run = '''
 set -eu
@@ -130,13 +137,19 @@ systemctl --user enable --now game-backup.timer
 '''
 
 [tasks."service:start"]
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
 description = "Start both installed user services"
 run = "systemctl --user start factorio.service valheim.service"
 
 [tasks."service:stop"]
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
 description = "Stop both user services"
 run = "systemctl --user stop factorio.service valheim.service"
 
 [tasks."service:status"]
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
 description = "Show both user services"
 run = "systemctl --user status factorio.service valheim.service --no-pager"
