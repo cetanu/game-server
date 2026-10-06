@@ -59,44 +59,6 @@ Archives go into `backups/<game>/`, retaining seven days. Valheim startup and ba
 
 Downloaded binaries, settings, worlds, and backups are ignored by Git. See [TUNING.md](TUNING.md) for ports and optional host tuning.
 
-## Namecheap Dynamic DNS
-
-The updater sets `valheim.vsyrakis.dev` and `factorio.vsyrakis.dev` to the same detected public IPv4. It needs Python 3 (standard library only). HTTPS requests have a 20-second timeout; provider errors cause a nonzero exit even if HTTP succeeds. Failed updates retry on the next timer run.
-
-In Namecheap, manage `vsyrakis.dev` → **Advanced DNS**:
-
-1. Enable **Dynamic DNS** and copy its **Dynamic DNS Password** (not your account password or general API key).
-2. Create **A+Dynamic DNS** records for hosts `valheim` and `factorio`.
-3. Put the password in `ddns_password` in `config/namecheap-ddns.json`. This ignored file is created locally with owner-only permissions. On a fresh clone, create it with `install -m 600 config/namecheap-ddns.json.example config/namecheap-ddns.json`.
-
-Namecheap DDNS requires BasicDNS, PremiumDNS, or FreeDNS nameservers. See the official [setup instructions](https://www.namecheap.com/support/knowledgebase/article.aspx/36/11/how-do-i-start-using-dynamic-dns/) and [update protocol](https://www.namecheap.com/support/knowledgebase/article.aspx/29/11/how-to-dynamically-update-the-hosts-ip-with-an-https-request/).
-
-```sh
-mise run ddns:check    # Validate local credentials; no network requests
-mise run ddns:update   # Update both hostnames now
-mise run ddns:enable   # Install user units, update now, then every five minutes
-mise run ddns:status
-mise run ddns:disable
-```
-
-The credential can also come from `NAMECHEAP_DDNS_PASSWORD`; the unattended timer uses the JSON file. Keep the user manager running after logout with `loginctl enable-linger "$USER"`.
-
-For direct or cron use (no mise activation needed):
-
-```sh
-python3 /absolute/path/to/game-server/scripts/namecheap_ddns.py
-# Optional explicit public IPv4:
-python3 scripts/namecheap_ddns.py --ip YOUR_PUBLIC_IPV4
-```
-
-Example crontab entry; replace the checkout path and use either cron or the timer:
-
-```cron
-*/5 * * * * /usr/bin/python3 /absolute/path/to/game-server/scripts/namecheap_ddns.py
-```
-
-Public IPv4 detection uses `https://api.ipify.org`. DNS updates do not configure router forwarding: forward UDP 34197 for Factorio and the Valheim ports to this machine. Connect using `factorio.vsyrakis.dev:34197` or `valheim.vsyrakis.dev:2456` once DNS propagates.
-
 ## Valheim administration
 
 ```sh
