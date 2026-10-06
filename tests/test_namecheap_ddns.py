@@ -23,6 +23,12 @@ class DDNSTest(unittest.TestCase):
             self.assertEqual(query, dict(host=[host], domain=["vsyrakis.dev"], password=["secret&+?"], ip=["8.8.8.8"]))
         self.assertNotIn("secret", output.getvalue())
 
+    def test_utf16_declaration_with_utf8_bytes_and_genuine_utf16(self):
+        text = '<?xml version="1.0" encoding="utf-16"?>' + SUCCESS.decode("ascii")
+        for payload in (text.encode("utf-8"), text.encode("utf-16")):
+            with self.subTest(payload=payload[:40]), patch.object(ddns, "fetch", return_value=payload):
+                ddns.update("valheim", "secret", "8.8.8.8")
+
     def test_provider_rejection_does_not_hide_failure_or_skip_other_host(self):
         rejected = b'<interface-response><ErrCount>1</ErrCount><Done>false</Done><Err1>secret</Err1></interface-response>'
         with patch.dict(ddns.os.environ, NAMECHEAP_DDNS_PASSWORD="secret"), patch.object(ddns, "fetch", side_effect=[rejected, SUCCESS]) as fetch:

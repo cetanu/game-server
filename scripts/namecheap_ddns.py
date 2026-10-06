@@ -53,10 +53,16 @@ def ipv4(value):
 
 def update(host, password, address):
     query = urllib.parse.urlencode(dict(host=host, domain=DOMAIN, password=password, ip=address))
+    payload = fetch(f"{ENDPOINT}?{query}")
     try:
-        result = ET.fromstring(fetch(f"{ENDPOINT}?{query}"))
+        result = ET.fromstring(payload)
     except ET.ParseError:
-        raise UpdateError("Namecheap returned an invalid XML response") from None
+        # Namecheap can declare UTF-16 while sending UTF-8 bytes. Parse the
+        # decoded text in that case, retaining normal handling for real UTF-16.
+        try:
+            result = ET.fromstring(payload.decode("utf-8-sig"))
+        except (UnicodeDecodeError, ET.ParseError):
+            raise UpdateError("Namecheap returned an invalid XML response") from None
     if result.findtext("ErrCount") != "0" or result.findtext("Done", "").lower() != "true":
         # Do not echo provider responses: they could contain credentials.
         raise UpdateError("Namecheap rejected the update; check DDNS password, enabled DDNS, and A+Dynamic records")
