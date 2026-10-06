@@ -127,11 +127,12 @@ mkdir -p "$unit_dir"
 mise_bin=$(command -v mise)
 staging=$(mktemp -d)
 trap 'rm -rf "$staging"' EXIT
-for name in factorio valheim game-backup; do
+for name in factorio valheim game-backup namecheap-ddns; do
   sed -e "s|@ROOT@|$GAME_SERVER_ROOT|g" -e "s|@MISE@|$mise_bin|g" "systemd/$name.service" > "$staging/$name.service"
   install -m 644 "$staging/$name.service" "$unit_dir/$name.service"
 done
 install -m 644 systemd/game-backup.timer "$unit_dir/game-backup.timer"
+install -m 644 systemd/namecheap-ddns.timer "$unit_dir/namecheap-ddns.timer"
 systemctl --user daemon-reload
 systemctl --user enable --now game-backup.timer
 '''
@@ -153,3 +154,37 @@ env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
 env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
 description = "Show both user services"
 run = "systemctl --user status factorio.service valheim.service --no-pager"
+
+[tasks."ddns:update"]
+description = "Update valheim and factorio.vsyrakis.dev to this server's public IPv4"
+run = "python3 scripts/namecheap_ddns.py"
+
+[tasks."ddns:check"]
+description = "Validate DDNS credential configuration without changing DNS"
+run = "python3 scripts/namecheap_ddns.py --check"
+
+[tasks."ddns:enable"]
+description = "Install and enable the five-minute DDNS timer (configure credentials first)"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = [
+  { task = "ddns:check" },
+  { task = "systemd:install-user" },
+  "systemctl --user enable --now namecheap-ddns.timer",
+  "systemctl --user start namecheap-ddns.service",
+]
+
+[tasks."ddns:disable"]
+description = "Disable automatic DDNS updates"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = "systemctl --user disable --now namecheap-ddns.timer"
+
+[tasks."ddns:status"]
+description = "Show the DDNS timer and last update result"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = [
+  "systemctl --user status namecheap-ddns.timer --no-pager",
+  "systemctl --user show namecheap-ddns.service -p Result -p ExecMainStatus -p ExecMainExitTimestamp",
+]

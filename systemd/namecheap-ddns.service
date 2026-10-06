@@ -1,0 +1,10 @@
+[Unit]
+Description=Update Namecheap game server DNS via mise
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@ROOT@
+ExecStart="@MISE@" run ddns:update
+TimeoutStartSec=90
+UMask=0077

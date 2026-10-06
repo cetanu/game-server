@@ -1,0 +1,9 @@
+[Unit]
+Description=Update game server DNS every five minutes
+
+[Timer]
+OnStartupSec=30s
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

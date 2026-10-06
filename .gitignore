@@ -16,3 +16,7 @@ config/*.env
 *.tar.xz
 *.zip
 .DS_Store
+
+# Namecheap DDNS credential
+/config/namecheap-ddns.json
+__pycache__/
