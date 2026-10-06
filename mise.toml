@@ -82,7 +82,13 @@ cd servers/valheim
 [ -x valheim_server.x86_64 ] || { echo "Run mise run install:valheim first" >&2; exit 1; }
 export LD_LIBRARY_PATH="$PWD/linux64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export SteamAppId=892970
-exec ./valheim_server.x86_64 -nographics -batchmode -name "$SERVER_NAME" -port "${SERVER_PORT:-2456}" -world "$SERVER_WORLD" -password "$SERVER_PASS" -public "${SERVER_PUBLIC:-1}" -savedir "$savedir"
+set --
+case "${SERVER_CROSSPLAY:-0}" in
+  1) set -- -crossplay ;;
+  0) ;;
+  *) echo "SERVER_CROSSPLAY must be 0 or 1" >&2; exit 1 ;;
+esac
+exec ./valheim_server.x86_64 -nographics -batchmode -name "$SERVER_NAME" -port "${SERVER_PORT:-2456}" -world "$SERVER_WORLD" -password "$SERVER_PASS" -public "${SERVER_PUBLIC:-1}" -savedir "$savedir" "$@"
 '''
 
 [tasks.start]
@@ -188,3 +194,57 @@ run = [
   "systemctl --user status namecheap-ddns.timer --no-pager",
   "systemctl --user show namecheap-ddns.service -p Result -p ExecMainStatus -p ExecMainExitTimestamp",
 ]
+
+[tasks."valheim:join-code"]
+description = "Show the latest crossplay join code from the current server run"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = "python3 scripts/valheim_admin.py join-code"
+
+[tasks."valheim:seed"]
+description = "Read the seed from the configured world metadata"
+run = "python3 scripts/valheim_admin.py seed"
+
+[tasks."valheim:admins"]
+description = "List configured Valheim server admins"
+run = "python3 scripts/valheim_admin.py admin list"
+
+[tasks."valheim:start"]
+description = "Start only the Valheim user service"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = "systemctl --user start valheim.service"
+
+[tasks."valheim:stop"]
+description = "Stop only Valheim, saving the world"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = "systemctl --user stop valheim.service"
+
+[tasks."valheim:restart"]
+description = "Restart only Valheim, saving the world"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = "systemctl --user restart valheim.service"
+
+[tasks."valheim:status"]
+description = "Show the Valheim user service"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = "systemctl --user status valheim.service --no-pager"
+
+[tasks."valheim:logs"]
+description = "Follow Valheim logs (Ctrl-C stops following)"
+env.XDG_RUNTIME_DIR = "{{vars.user_runtime}}"
+env.DBUS_SESSION_BUS_ADDRESS = "{{vars.user_bus}}"
+run = "journalctl --user -u valheim.service -n 50 -f"
+
+[tasks."valheim:admin:add"]
+description = "Add a Platform User ID in Valheim's admin list"
+usage = 'arg "<platform_id>" help="Exact F2 Platform User ID, e.g. Steam_76561198000000000"'
+run = 'python3 scripts/valheim_admin.py admin add "${usage_platform_id?}"'
+
+[tasks."valheim:admin:remove"]
+description = "Remove a Platform User ID in Valheim's admin list"
+usage = 'arg "<platform_id>" help="Exact F2 Platform User ID, e.g. Steam_76561198000000000"'
+run = 'python3 scripts/valheim_admin.py admin remove "${usage_platform_id?}"'
