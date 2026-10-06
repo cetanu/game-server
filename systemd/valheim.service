@@ -1,0 +1,13 @@
+[Unit]
+Description=Valheim Dedicated Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/game-server/servers/valheim
+ExecStart=%h/Documents/game-server/scripts/start-valheim.sh
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

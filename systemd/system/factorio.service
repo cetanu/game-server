@@ -1,0 +1,28 @@
+[Unit]
+Description=Factorio Dedicated Headless Server
+After=network.target
+
+[Service]
+Type=simple
+User=factorio
+Group=factorio
+WorkingDirectory=/home/vsyrakis/Documents/game-server/servers/factorio
+ExecStart=/home/vsyrakis/Documents/game-server/servers/factorio/bin/x64/factorio \
+    --start-server /home/vsyrakis/Documents/game-server/servers/factorio/saves/world.zip \
+    --server-settings /home/vsyrakis/Documents/game-server/servers/factorio/config/server-settings.json
+Restart=on-failure
+RestartSec=10s
+
+# Hardening / Sandboxing
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/vsyrakis/Documents/game-server/servers/factorio
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target

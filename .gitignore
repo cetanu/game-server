@@ -1,0 +1,18 @@
+# Downloaded game server binaries and data
+/servers/
+/tools/
+/bin/
+
+# Backups
+/backups/
+
+# Sensitive credentials & environment overrides
+config/*.env
+!config/*.env.example
+
+# Temporary files and logs
+*.log
+*.tar.gz
+*.tar.xz
+*.zip
+.DS_Store

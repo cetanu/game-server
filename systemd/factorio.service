@@ -1,0 +1,15 @@
+[Unit]
+Description=Factorio Dedicated Headless Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/game-server/servers/factorio
+ExecStart=%h/Documents/game-server/servers/factorio/bin/x64/factorio \
+    --start-server %h/Documents/game-server/servers/factorio/saves/world.zip \
+    --server-settings %h/Documents/game-server/servers/factorio/config/server-settings.json
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

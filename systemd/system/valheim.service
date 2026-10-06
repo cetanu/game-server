@@ -1,0 +1,26 @@
+[Unit]
+Description=Valheim Dedicated Server
+After=network.target
+
+[Service]
+Type=simple
+User=valheim
+Group=valheim
+WorkingDirectory=/home/vsyrakis/Documents/game-server/servers/valheim
+ExecStart=/home/vsyrakis/Documents/game-server/scripts/start-valheim.sh
+Restart=on-failure
+RestartSec=10s
+
+# Hardening / Sandboxing
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/vsyrakis/Documents/game-server/servers/valheim /var/opt/valheim-saves
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target

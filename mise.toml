@@ -1,0 +1,41 @@
+[env]
+_.path = ["{{config_root}}/bin", "{{env.HOME}}/.local/bin"]
+
+
+[tasks."install:steamcmd"]
+description = "Install steamcmd standalone binary"
+run = "bash scripts/install-steamcmd.sh"
+
+[tasks."install:valheim"]
+description = "Install/update Valheim dedicated server using steamcmd"
+depends = ["install:steamcmd"]
+run = "bash scripts/install-valheim.sh"
+
+[tasks."install:factorio"]
+description = "Download and extract latest Factorio headless server"
+run = "bash scripts/install-factorio.sh"
+
+[tasks."install:all"]
+description = "Install both Factorio and Valheim servers"
+depends = ["install:factorio", "install:valheim"]
+
+[tasks."backup:valheim"]
+description = "Backup Valheim world save files"
+run = "bash scripts/backup-valheim.sh"
+
+[tasks."backup:factorio"]
+description = "Backup Factorio world saves"
+run = "bash scripts/backup-factorio.sh"
+
+[tasks."backup:all"]
+description = "Backup all game saves"
+depends = ["backup:valheim", "backup:factorio"]
+
+[tasks."systemd:install-user"]
+description = "Install systemd user services and backup timers (user session)"
+run = "bash scripts/install-systemd.sh"
+
+[tasks."systemd:setup-system"]
+description = "Create dedicated unprivileged users and install hardened system-level systemd units"
+run = "sudo bash scripts/setup-systemd-system.sh"
+
